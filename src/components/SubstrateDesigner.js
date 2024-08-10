@@ -1,12 +1,17 @@
 import React, { useState } from 'react';
 
 const SubstrateDesigner = () => {
-  const [gridSize, setGridSize] = useState(8);
+  const gridSize = 15; // Fixed odd number for zero-centering
   const [connections, setConnections] = useState([]);
   const [selectedPoint, setSelectedPoint] = useState(null);
+  const [nodeType, setNodeType] = useState(null); // 'input', 'output', or null
+  const [inputNodes, setInputNodes] = useState([]);
+  const [outputNodes, setOutputNodes] = useState([]);
 
   const handleGridClick = (x, y) => {
-    if (!selectedPoint) {
+    if (nodeType) {
+      handleNodePlacement(x, y);
+    } else if (!selectedPoint) {
       setSelectedPoint([x, y]);
     } else {
       const [x1, y1] = selectedPoint;
@@ -19,33 +24,46 @@ const SubstrateDesigner = () => {
       );
 
       if (connectionIndex !== -1) {
-        // Remove the connection if it already exists
         setConnections(connections.filter((_, index) => index !== connectionIndex));
       } else {
-        // Add the new connection
         setConnections([...connections, newConnection]);
       }
       setSelectedPoint(null);
     }
   };
 
+  const handleNodePlacement = (x, y) => {
+    const newNode = [x, y];
+    if (nodeType === 'input') {
+      setInputNodes([...inputNodes, newNode]);
+    } else if (nodeType === 'output') {
+      setOutputNodes([...outputNodes, newNode]);
+    }
+    setNodeType(null);
+  };
+
   const isPointSelected = (x, y) => {
     return selectedPoint && selectedPoint[0] === x && selectedPoint[1] === y;
   };
 
+  const isInputNode = (x, y) => inputNodes.some(node => node[0] === x && node[1] === y);
+  const isOutputNode = (x, y) => outputNodes.some(node => node[0] === x && node[1] === y);
+
   const gridItems = [];
-  for (let y = 0; y < gridSize; y++) {
-    for (let x = 0; x < gridSize; x++) {
+  for (let y = Math.floor(gridSize / 2); y >= -Math.floor(gridSize / 2); y--) {
+    for (let x = -Math.floor(gridSize / 2); x <= Math.floor(gridSize / 2); x++) {
       gridItems.push(
         <div
           key={`${x}-${y}`}
           className={`w-8 h-8 border flex items-center justify-center cursor-pointer
             ${(x + y) % 2 === 0 ? 'bg-gray-50' : 'bg-white'}
-            ${isPointSelected(x, y) ? 'border-4 border-blue-500' : 'border-gray-200'}`}
+            ${isPointSelected(x, y) ? 'border-4 border-blue-500' : 'border-gray-200'}
+            ${isInputNode(x, y) ? 'bg-green-300' : ''}
+            ${isOutputNode(x, y) ? 'bg-red-300' : ''}`}
           onClick={() => handleGridClick(x, y)}
         >
-          {x === 0 && <div className="absolute left-0 text-xs text-gray-500">{y}</div>}
-          {y === gridSize - 1 && <div className="absolute bottom-0 text-xs text-gray-500">{x}</div>}
+          {x === -Math.floor(gridSize / 2) && <div className="absolute left-0 text-xs text-gray-500">{y}</div>}
+          {y === -Math.floor(gridSize / 2) && <div className="absolute bottom-0 text-xs text-gray-500">{x}</div>}
         </div>
       );
     }
@@ -55,17 +73,18 @@ const SubstrateDesigner = () => {
     <div className="flex flex-col items-center p-4">
       <h1 className="text-xl font-bold mb-4">HyperNEAT Substrate Designer</h1>
       <div className="mb-4">
-        <label htmlFor="gridSize" className="mr-2">Grid Size:</label>
-        <select
-          id="gridSize"
-          value={gridSize}
-          onChange={(e) => setGridSize(Number(e.target.value))}
-          className="border rounded p-1"
+        <button
+          onClick={() => setNodeType('input')}
+          className="bg-green-500 text-white px-4 py-2 rounded mr-2"
         >
-          {[8, 16, 24, 32].map(size => (
-            <option key={size} value={size}>{size}x{size}</option>
-          ))}
-        </select>
+          Place Input Node
+        </button>
+        <button
+          onClick={() => setNodeType('output')}
+          className="bg-red-500 text-white px-4 py-2 rounded"
+        >
+          Place Output Node
+        </button>
       </div>
       <div 
         className="grid mb-4 relative" 
@@ -79,10 +98,10 @@ const SubstrateDesigner = () => {
           {connections.map(([x1, y1, x2, y2], index) => (
             <line
               key={index}
-              x1={(x1 + 0.5) * 32}
-              y1={(y1 + 0.5) * 32}
-              x2={(x2 + 0.5) * 32}
-              y2={(y2 + 0.5) * 32}
+              x1={(x1 + Math.floor(gridSize / 2) + 0.5) * 32}
+              y1={(Math.floor(gridSize / 2) - y1 + 0.5) * 32}
+              x2={(x2 + Math.floor(gridSize / 2) + 0.5) * 32}
+              y2={(Math.floor(gridSize / 2) - y2 + 0.5) * 32}
               stroke="red"
               strokeWidth="2"
             />
@@ -90,6 +109,18 @@ const SubstrateDesigner = () => {
         </svg>
       </div>
       <div className="w-full max-w-md">
+        <h2 className="text-xl font-semibold mb-2">Input Nodes:</h2>
+        <ul className="list-disc pl-5 mb-4">
+          {inputNodes.map(([x, y], index) => (
+            <li key={index}>({x}, {y})</li>
+          ))}
+        </ul>
+        <h2 className="text-xl font-semibold mb-2">Output Nodes:</h2>
+        <ul className="list-disc pl-5 mb-4">
+          {outputNodes.map(([x, y], index) => (
+            <li key={index}>({x}, {y})</li>
+          ))}
+        </ul>
         <h2 className="text-xl font-semibold mb-2">Connections:</h2>
         <ul className="list-disc pl-5">
           {connections.map(([x1, y1, x2, y2], index) => (
