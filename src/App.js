@@ -5,7 +5,7 @@ import SubstrateDesignerPage from './pages/SubstrateDesignerPage';
 
 function App() {
   return (
-    <Router>
+    <Router basename="/site">
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/substrate-designer" element={<SubstrateDesignerPage />} />
