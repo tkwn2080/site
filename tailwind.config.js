@@ -8,7 +8,8 @@ module.exports = {
       colors: {
         'custom-green': {
           900: '#002D00',
-          700: '#004D00', // This is a lighter shade, adjust as needed
+          700: '#004D00',
+          500: '#006D00', 
         },
       },
     },
