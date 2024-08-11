@@ -4,7 +4,14 @@ module.exports = {
     "./public/index.html",
   ],
   theme: {
-    extend: {},
+    extend: {
+      colors: {
+        'custom-green': {
+          900: '#002D00',
+          700: '#004D00', // This is a lighter shade, adjust as needed
+        },
+      },
+    },
   },
   plugins: [],
 }
