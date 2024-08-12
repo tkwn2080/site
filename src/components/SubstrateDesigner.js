@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 
 const SubstrateDesigner = () => {
-  const gridSize = 15; // Fixed odd number for zero-centering
+  const gridSize = 25; // Fixed odd number for zero-centering
   const [connections, setConnections] = useState([]);
   const [selectedPoint, setSelectedPoint] = useState(null);
   const [nodeType, setNodeType] = useState(null); // 'input', 'output', or null
