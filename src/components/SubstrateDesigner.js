@@ -159,6 +159,42 @@ const SubstrateDesigner = () => {
   const isOutputNode = (x, y) => outputNodes.some(node => node[0] === x && node[1] === y);
   const isHiddenNode = (x, y) => hiddenNodes.some(node => node[0] === x && node[1] === y);
 
+  const renderNodeList = (nodes, title) => (
+    <div className="mb-4">
+      <h2 className="text-xl font-semibold mb-2 text-center">{title}</h2>
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
+        {nodes.map(([x, y], index) => (
+          <div key={index} className="bg-gray-100 p-1 rounded text-center text-sm">
+            ({x}, {y})
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  const exportSubstrate = () => {
+    const substrate = {
+      input_nodes: inputNodes.map(([x, y]) => `(${x}, ${y})`),
+      hidden_nodes: hiddenNodes.map(([x, y]) => `(${x}, ${y})`),
+      output_nodes: outputNodes.map(([x, y]) => `(${x}, ${y})`),
+      connections: connections.map(([x1, y1, x2, y2]) => `((${x1},${y1}), (${x2},${y2}))`)
+    };
+  
+    const fileContent = Object.entries(substrate)
+      .map(([key, value]) => `${key.replace('_', ' ')}:\n${value.join('\n')}`)
+      .join('\n\n');
+  
+    const blob = new Blob([fileContent], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'hn-substrate.txt';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   const gridItems = [];
   for (let y = Math.floor(gridSize / 2); y >= -Math.floor(gridSize / 2); y--) {
     for (let x = -Math.floor(gridSize / 2); x <= Math.floor(gridSize / 2); x++) {
@@ -193,19 +229,6 @@ const SubstrateDesigner = () => {
       );
     }
   }
-
-  const renderNodeList = (nodes, title) => (
-    <div className="mb-4">
-      <h2 className="text-xl font-semibold mb-2 text-center">{title}</h2>
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
-        {nodes.map(([x, y], index) => (
-          <div key={index} className="bg-gray-100 p-1 rounded text-center text-sm">
-            ({x}, {y})
-          </div>
-        ))}
-      </div>
-    </div>
-  );
 
   return (
     <div className="flex flex-col items-center p-4">
@@ -292,6 +315,12 @@ const SubstrateDesigner = () => {
           </div>
         </div>
       </div>
+      <button
+        onClick={exportSubstrate}
+        className="px-4 py-2 bg-blue-500 text-white rounded mt-4"
+      >
+        Export Substrate
+      </button>
     </div>
   );
 };
