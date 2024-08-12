@@ -103,29 +103,25 @@ const SubstrateDesigner = () => {
       output: outputNodes.filter(([x, y]) => x >= minX && x <= maxX && y >= minY && y <= maxY),
     };
 
+    const allNodes = [...nodesInArea.input, ...nodesInArea.hidden, ...nodesInArea.output];
+    allNodes.sort((a, b) => a[1] - b[1]); // Sort nodes by y-coordinate
+
     const newConnections = [];
 
-    // Connect input to hidden
-    nodesInArea.input.forEach(inputNode => {
-      nodesInArea.hidden.forEach(hiddenNode => {
-        newConnections.push([...inputNode, ...hiddenNode]);
-      });
-    });
+    // Function to determine if a node is an output node
+    const isOutputNode = (node) => nodesInArea.output.some(([x, y]) => x === node[0] && y === node[1]);
 
-    // Connect hidden to output
-    nodesInArea.hidden.forEach(hiddenNode => {
-      nodesInArea.output.forEach(outputNode => {
-        newConnections.push([...hiddenNode, ...outputNode]);
-      });
-    });
-
-    // If no hidden nodes, connect input directly to output
-    if (nodesInArea.hidden.length === 0) {
-      nodesInArea.input.forEach(inputNode => {
-        nodesInArea.output.forEach(outputNode => {
-          newConnections.push([...inputNode, ...outputNode]);
-        });
-      });
+    // Create connections between layers
+    for (let i = 0; i < allNodes.length; i++) {
+      const sourceNode = allNodes[i];
+      if (!isOutputNode(sourceNode)) { // Don't create connections from output nodes
+        for (let j = i + 1; j < allNodes.length; j++) {
+          const targetNode = allNodes[j];
+          if (targetNode[1] > sourceNode[1]) { // Ensure the target node is in a later row
+            newConnections.push([...sourceNode, ...targetNode]);
+          }
+        }
+      }
     }
 
     // Filter out existing connections
