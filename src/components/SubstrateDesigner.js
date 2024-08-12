@@ -70,7 +70,11 @@ const SubstrateDesigner = () => {
         setOutputNodes([...outputNodes, newNode]);
       }
     }
-    setNodeType(null);
+  };
+
+  const toggleNodeType = (type) => {
+    setNodeType(prevType => prevType === type ? null : type);
+    setSelectedPoint(null);
   };
 
   const isPointSelected = (x, y) => {
@@ -133,14 +137,22 @@ const SubstrateDesigner = () => {
       <h1 className="text-xl font-bold mb-4">HyperNEAT Substrate Designer</h1>
       <div className="mb-4">
         <button
-          onClick={() => setNodeType('input')}
-          className="bg-green-500 text-white px-4 py-2 rounded mr-2"
+          onClick={() => toggleNodeType('input')}
+          className={`px-4 py-2 rounded mr-2 ${
+            nodeType === 'input'
+              ? 'bg-green-500 text-white border-2 border-blue-500'
+              : 'bg-green-500 text-white'
+          }`}
         >
           Place/Remove Input Node
         </button>
         <button
-          onClick={() => setNodeType('output')}
-          className="bg-red-500 text-white px-4 py-2 rounded mr-2"
+          onClick={() => toggleNodeType('output')}
+          className={`px-4 py-2 rounded mr-2 ${
+            nodeType === 'output'
+              ? 'bg-red-500 text-white border-2 border-blue-500'
+              : 'bg-red-500 text-white'
+          }`}
         >
           Place/Remove Output Node
         </button>
