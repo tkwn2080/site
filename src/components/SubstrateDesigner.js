@@ -4,9 +4,11 @@ const SubstrateDesigner = () => {
   const gridSize = 25; // Fixed odd number for zero-centering
   const [connections, setConnections] = useState([]);
   const [selectedPoint, setSelectedPoint] = useState(null);
-  const [nodeType, setNodeType] = useState(null); // 'input', 'output', or null
+  const [nodeType, setNodeType] = useState(null); // 'input', 'output', 'dense', or null
   const [inputNodes, setInputNodes] = useState([]);
   const [outputNodes, setOutputNodes] = useState([]);
+  const [selectionStart, setSelectionStart] = useState(null);
+  const [selectionEnd, setSelectionEnd] = useState(null);
 
   const hiddenNodes = useMemo(() => {
     const allNodes = new Set([...inputNodes, ...outputNodes].map(node => JSON.stringify(node)));
@@ -23,7 +25,14 @@ const SubstrateDesigner = () => {
   }, [connections, inputNodes, outputNodes]);
 
   const handleGridClick = (x, y) => {
-    if (nodeType) {
+    if (nodeType === 'dense') {
+      if (!selectionStart) {
+        setSelectionStart([x, y]);
+      } else {
+        setSelectionEnd([x, y]);
+        createDenseConnections();
+      }
+    } else if (nodeType) {
       handleNodePlacement(x, y);
     } else if (!selectedPoint) {
       setSelectedPoint([x, y]);
@@ -31,7 +40,6 @@ const SubstrateDesigner = () => {
       const [x1, y1] = selectedPoint;
       const [x2, y2] = [x, y];
       
-      // Prevent self-connections
       if (x1 === x2 && y1 === y2) {
         setSelectedPoint(null);
         return;
@@ -75,10 +83,57 @@ const SubstrateDesigner = () => {
   const toggleNodeType = (type) => {
     setNodeType(prevType => prevType === type ? null : type);
     setSelectedPoint(null);
+    setSelectionStart(null);
+    setSelectionEnd(null);
+  };
+
+  const createDenseConnections = () => {
+    if (!selectionStart || !selectionEnd) return;
+
+    const [x1, y1] = selectionStart;
+    const [x2, y2] = selectionEnd;
+    const minX = Math.min(x1, x2);
+    const maxX = Math.max(x1, x2);
+    const minY = Math.min(y1, y2);
+    const maxY = Math.max(y1, y2);
+
+    const nodesInArea = [...inputNodes, ...outputNodes, ...hiddenNodes].filter(
+      ([x, y]) => x >= minX && x <= maxX && y >= minY && y <= maxY
+    );
+
+    const newConnections = [];
+    for (let i = 0; i < nodesInArea.length; i++) {
+      for (let j = i + 1; j < nodesInArea.length; j++) {
+        const [x1, y1] = nodesInArea[i];
+        const [x2, y2] = nodesInArea[j];
+        if (!connections.some(conn => 
+          (conn[0] === x1 && conn[1] === y1 && conn[2] === x2 && conn[3] === y2) ||
+          (conn[0] === x2 && conn[1] === y2 && conn[2] === x1 && conn[3] === y1)
+        )) {
+          newConnections.push([x1, y1, x2, y2]);
+        }
+      }
+    }
+
+    setConnections([...connections, ...newConnections]);
+    setSelectionStart(null);
+    setSelectionEnd(null);
+    setNodeType(null);
   };
 
   const isPointSelected = (x, y) => {
     return selectedPoint && selectedPoint[0] === x && selectedPoint[1] === y;
+  };
+
+  const isPointInSelection = (x, y) => {
+    if (!selectionStart || !selectionEnd) return false;
+    const [x1, y1] = selectionStart;
+    const [x2, y2] = selectionEnd;
+    const minX = Math.min(x1, x2);
+    const maxX = Math.max(x1, x2);
+    const minY = Math.min(y1, y2);
+    const maxY = Math.max(y1, y2);
+    return x >= minX && x <= maxX && y >= minY && y <= maxY;
   };
 
   const isInputNode = (x, y) => inputNodes.some(node => node[0] === x && node[1] === y);
@@ -94,6 +149,7 @@ const SubstrateDesigner = () => {
           className={`w-8 h-8 border flex items-center justify-center cursor-pointer
             ${(x + y) % 2 === 0 ? 'bg-gray-50' : 'bg-white'}
             ${isPointSelected(x, y) ? 'border-4 border-blue-500' : 'border-gray-200'}
+            ${isPointInSelection(x, y) ? 'bg-yellow-200' : ''}
             relative`}
           onClick={() => handleGridClick(x, y)}
         >
@@ -155,6 +211,16 @@ const SubstrateDesigner = () => {
           }`}
         >
           Place/Remove Output Node
+        </button>
+        <button
+          onClick={() => toggleNodeType('dense')}
+          className={`px-4 py-2 rounded mr-2 ${
+            nodeType === 'dense'
+              ? 'bg-purple-500 text-white border-2 border-blue-500'
+              : 'bg-purple-500 text-white'
+          }`}
+        >
+          Create Dense Connections
         </button>
       </div>
       <div 
