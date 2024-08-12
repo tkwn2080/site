@@ -97,25 +97,48 @@ const SubstrateDesigner = () => {
     const minY = Math.min(y1, y2);
     const maxY = Math.max(y1, y2);
 
-    const nodesInArea = [...inputNodes, ...outputNodes, ...hiddenNodes].filter(
-      ([x, y]) => x >= minX && x <= maxX && y >= minY && y <= maxY
-    );
+    const nodesInArea = {
+      input: inputNodes.filter(([x, y]) => x >= minX && x <= maxX && y >= minY && y <= maxY),
+      hidden: hiddenNodes.filter(([x, y]) => x >= minX && x <= maxX && y >= minY && y <= maxY),
+      output: outputNodes.filter(([x, y]) => x >= minX && x <= maxX && y >= minY && y <= maxY),
+    };
 
     const newConnections = [];
-    for (let i = 0; i < nodesInArea.length; i++) {
-      for (let j = i + 1; j < nodesInArea.length; j++) {
-        const [x1, y1] = nodesInArea[i];
-        const [x2, y2] = nodesInArea[j];
-        if (!connections.some(conn => 
-          (conn[0] === x1 && conn[1] === y1 && conn[2] === x2 && conn[3] === y2) ||
-          (conn[0] === x2 && conn[1] === y2 && conn[2] === x1 && conn[3] === y1)
-        )) {
-          newConnections.push([x1, y1, x2, y2]);
-        }
-      }
+
+    // Connect input to hidden
+    nodesInArea.input.forEach(inputNode => {
+      nodesInArea.hidden.forEach(hiddenNode => {
+        newConnections.push([...inputNode, ...hiddenNode]);
+      });
+    });
+
+    // Connect hidden to output
+    nodesInArea.hidden.forEach(hiddenNode => {
+      nodesInArea.output.forEach(outputNode => {
+        newConnections.push([...hiddenNode, ...outputNode]);
+      });
+    });
+
+    // If no hidden nodes, connect input directly to output
+    if (nodesInArea.hidden.length === 0) {
+      nodesInArea.input.forEach(inputNode => {
+        nodesInArea.output.forEach(outputNode => {
+          newConnections.push([...inputNode, ...outputNode]);
+        });
+      });
     }
 
-    setConnections([...connections, ...newConnections]);
+    // Filter out existing connections
+    const uniqueNewConnections = newConnections.filter(newConn => 
+      !connections.some(existingConn => 
+        (existingConn[0] === newConn[0] && existingConn[1] === newConn[1] && 
+         existingConn[2] === newConn[2] && existingConn[3] === newConn[3]) ||
+        (existingConn[0] === newConn[2] && existingConn[1] === newConn[3] && 
+         existingConn[2] === newConn[0] && existingConn[3] === newConn[1])
+      )
+    );
+
+    setConnections([...connections, ...uniqueNewConnections]);
     setSelectionStart(null);
     setSelectionEnd(null);
     setNodeType(null);
