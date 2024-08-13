@@ -174,21 +174,22 @@ const SubstrateDesigner = () => {
 
   const exportSubstrate = () => {
     const substrate = {
-      input_nodes: inputNodes.map(([x, y]) => `(${x}, ${y})`),
-      hidden_nodes: hiddenNodes.map(([x, y]) => `(${x}, ${y})`),
-      output_nodes: outputNodes.map(([x, y]) => `(${x}, ${y})`),
-      connections: connections.map(([x1, y1, x2, y2]) => `((${x1},${y1}), (${x2},${y2}))`)
+      input_nodes: inputNodes.map(([x, y]) => ({ x, y })),
+      hidden_nodes: hiddenNodes.map(([x, y]) => ({ x, y })),
+      output_nodes: outputNodes.map(([x, y]) => ({ x, y })),
+      connections: connections.map(([x1, y1, x2, y2]) => ({
+        from: { x: x1, y: y1 },
+        to: { x: x2, y: y2 }
+      }))
     };
   
-    const fileContent = Object.entries(substrate)
-      .map(([key, value]) => `${key.replace('_', ' ')}:\n${value.join('\n')}`)
-      .join('\n\n');
+    const jsonContent = JSON.stringify(substrate, null, 2);
   
-    const blob = new Blob([fileContent], { type: 'text/plain' });
+    const blob = new Blob([jsonContent], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = 'hn-substrate.txt';
+    link.download = 'hn-substrate.json';
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -319,7 +320,7 @@ const SubstrateDesigner = () => {
         onClick={exportSubstrate}
         className="px-4 py-2 bg-blue-500 text-white rounded mt-4"
       >
-        Export Substrate
+        Export Substrate as JSON
       </button>
     </div>
   );
