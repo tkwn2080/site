@@ -4,11 +4,16 @@ const SubstrateDesigner = () => {
   const gridSize = 25; // Fixed odd number for zero-centering
   const [connections, setConnections] = useState([]);
   const [selectedPoint, setSelectedPoint] = useState(null);
-  const [nodeType, setNodeType] = useState(null); // 'input', 'output', 'dense', or null
+  const [nodeType, setNodeType] = useState(null);
   const [inputNodes, setInputNodes] = useState([]);
   const [outputNodes, setOutputNodes] = useState([]);
   const [selectionStart, setSelectionStart] = useState(null);
   const [selectionEnd, setSelectionEnd] = useState(null);
+  
+  // Updated state variables for layer definition
+  const [definingLayer, setDefiningLayer] = useState(false);
+  const [selectedLayerNodes, setSelectedLayerNodes] = useState([]);
+  const [layers, setLayers] = useState([]);
 
   const hiddenNodes = useMemo(() => {
     const allNodes = new Set([...inputNodes, ...outputNodes].map(node => JSON.stringify(node)));
@@ -24,8 +29,24 @@ const SubstrateDesigner = () => {
     return Array.from(hiddenSet).map(node => JSON.parse(node));
   }, [connections, inputNodes, outputNodes]);
 
+  const toggleDefiningLayer = () => {
+    if (definingLayer && selectedLayerNodes.length >= 2) {
+      // Create a new layer
+      setLayers(prevLayers => [...prevLayers, { nodes: selectedLayerNodes }]);
+      setSelectedLayerNodes([]);
+    }
+    setDefiningLayer(!definingLayer);
+  };
+
   const handleGridClick = (x, y) => {
-    if (nodeType === 'dense') {
+    if (definingLayer) {
+      const node = [x, y];
+      setSelectedLayerNodes(prev => 
+        prev.some(([px, py]) => px === x && py === y)
+          ? prev.filter(([px, py]) => px !== x || py !== y)
+          : [...prev, node]
+      );
+    } else if (nodeType === 'dense') {
       if (!selectionStart) {
         setSelectionStart([x, y]);
       } else {
@@ -89,41 +110,36 @@ const SubstrateDesigner = () => {
 
   const createDenseConnections = () => {
     if (!selectionStart || !selectionEnd) return;
-
+  
     const [x1, y1] = selectionStart;
     const [x2, y2] = selectionEnd;
     const minX = Math.min(x1, x2);
     const maxX = Math.max(x1, x2);
     const minY = Math.min(y1, y2);
     const maxY = Math.max(y1, y2);
-
+  
     const nodesInArea = {
       input: inputNodes.filter(([x, y]) => x >= minX && x <= maxX && y >= minY && y <= maxY),
       hidden: hiddenNodes.filter(([x, y]) => x >= minX && x <= maxX && y >= minY && y <= maxY),
       output: outputNodes.filter(([x, y]) => x >= minX && x <= maxX && y >= minY && y <= maxY),
     };
-
+  
     const allNodes = [...nodesInArea.input, ...nodesInArea.hidden, ...nodesInArea.output];
     allNodes.sort((a, b) => a[1] - b[1]); // Sort nodes by y-coordinate
-
+  
     const newConnections = [];
-
-    // Function to determine if a node is an output node
-    const isOutputNode = (node) => nodesInArea.output.some(([x, y]) => x === node[0] && y === node[1]);
-
-    // Create connections between layers
+  
+    // Create connections between all nodes
     for (let i = 0; i < allNodes.length; i++) {
       const sourceNode = allNodes[i];
-      if (!isOutputNode(sourceNode)) { // Don't create connections from output nodes
-        for (let j = i + 1; j < allNodes.length; j++) {
-          const targetNode = allNodes[j];
-          if (targetNode[1] > sourceNode[1]) { // Ensure the target node is in a later row
-            newConnections.push([...sourceNode, ...targetNode]);
-          }
+      for (let j = i + 1; j < allNodes.length; j++) {
+        const targetNode = allNodes[j];
+        if (targetNode[1] > sourceNode[1]) { // Ensure the target node is in a later row
+          newConnections.push([...sourceNode, ...targetNode]);
         }
       }
     }
-
+  
     // Filter out existing connections
     const uniqueNewConnections = newConnections.filter(newConn => 
       !connections.some(existingConn => 
@@ -133,7 +149,7 @@ const SubstrateDesigner = () => {
          existingConn[2] === newConn[0] && existingConn[3] === newConn[1])
       )
     );
-
+  
     setConnections([...connections, ...uniqueNewConnections]);
     setSelectionStart(null);
     setSelectionEnd(null);
@@ -158,6 +174,12 @@ const SubstrateDesigner = () => {
   const isInputNode = (x, y) => inputNodes.some(node => node[0] === x && node[1] === y);
   const isOutputNode = (x, y) => outputNodes.some(node => node[0] === x && node[1] === y);
   const isHiddenNode = (x, y) => hiddenNodes.some(node => node[0] === x && node[1] === y);
+  const isNodeInLayer = (x, y) => {
+    if (definingLayer) {
+      return selectedLayerNodes.some(([nx, ny]) => nx === x && ny === y);
+    }
+    return false;
+  };
 
   const renderNodeList = (nodes, title) => (
     <div className="mb-4">
@@ -172,6 +194,24 @@ const SubstrateDesigner = () => {
     </div>
   );
 
+  const renderLayersList = () => (
+    <div className="mb-4">
+      <h2 className="text-xl font-semibold mb-2 text-center">Defined Layers</h2>
+      {layers.map((layer, index) => (
+        <div key={index} className="mb-2">
+          <h3 className="text-lg font-semibold">Layer {index + 1}</h3>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
+            {layer.nodes.map(([x, y], nodeIndex) => (
+              <div key={nodeIndex} className="bg-gray-100 p-1 rounded text-center text-sm">
+                ({x}, {y})
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+
   const exportSubstrate = () => {
     const substrate = {
       input_nodes: inputNodes.map(([x, y]) => ({ x, y })),
@@ -180,6 +220,10 @@ const SubstrateDesigner = () => {
       connections: connections.map(([x1, y1, x2, y2]) => ({
         from: { x: x1, y: y1 },
         to: { x: x2, y: y2 }
+      })),
+      layers: layers.map((layer, index) => ({
+        id: index,
+        nodes: layer.nodes.map(([x, y]) => ({ x, y }))
       }))
     };
   
@@ -206,6 +250,7 @@ const SubstrateDesigner = () => {
             ${(x + y) % 2 === 0 ? 'bg-gray-50' : 'bg-white'}
             ${isPointSelected(x, y) ? 'border-4 border-blue-500' : 'border-gray-200'}
             ${isPointInSelection(x, y) ? 'bg-yellow-200' : ''}
+            ${isNodeInLayer(x, y) ? 'bg-purple-200' : ''}
             relative`}
           onClick={() => handleGridClick(x, y)}
         >
@@ -243,7 +288,7 @@ const SubstrateDesigner = () => {
               : 'bg-green-500 text-white'
           }`}
         >
-          Place/Remove Input Node
+          Place/Remove Input Nodes
         </button>
         <button
           onClick={() => toggleNodeType('output')}
@@ -253,7 +298,7 @@ const SubstrateDesigner = () => {
               : 'bg-red-500 text-white'
           }`}
         >
-          Place/Remove Output Node
+          Place/Remove Output Nodes
         </button>
         <button
           onClick={() => toggleNodeType('dense')}
@@ -264,6 +309,16 @@ const SubstrateDesigner = () => {
           }`}
         >
           Create Dense Connections
+        </button>
+        <button
+          onClick={toggleDefiningLayer}
+          className={`px-4 py-2 rounded mr-2 ${
+            definingLayer
+              ? 'bg-yellow-500 text-white border-2 border-blue-500'
+              : 'bg-yellow-500 text-white'
+          }`}
+        >
+          {definingLayer ? 'Finish Layer' : 'Define Layer'}
         </button>
       </div>
       <div 
@@ -305,6 +360,7 @@ const SubstrateDesigner = () => {
         {renderNodeList(inputNodes, "Input Nodes")}
         {renderNodeList(hiddenNodes, "Hidden Nodes")}
         {renderNodeList(outputNodes, "Output Nodes")}
+        {renderLayersList()}
         <div className="mb-4">
           <h2 className="text-xl font-semibold mb-2 text-center">Connections</h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
