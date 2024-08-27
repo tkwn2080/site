@@ -7,12 +7,12 @@ const SubstrateDesigner = () => {
   const [nodeType, setNodeType] = useState(null);
   const [inputNodes, setInputNodes] = useState([]);
   const [outputNodes, setOutputNodes] = useState([]);
-  const [selectionStart, setSelectionStart] = useState(null);
-  const [selectionEnd, setSelectionEnd] = useState(null);
   
-  // Updated state variables for layer definition
+  // Updated state variables for layer and dense connection definition
   const [definingLayer, setDefiningLayer] = useState(false);
+  const [definingDenseConnections, setDefiningDenseConnections] = useState(false);
   const [selectedLayerNodes, setSelectedLayerNodes] = useState([]);
+  const [selectedDenseNodes, setSelectedDenseNodes] = useState([]);
   const [layers, setLayers] = useState([]);
 
   const hiddenNodes = useMemo(() => {
@@ -36,6 +36,17 @@ const SubstrateDesigner = () => {
       setSelectedLayerNodes([]);
     }
     setDefiningLayer(!definingLayer);
+    setDefiningDenseConnections(false);
+    setNodeType(null);
+  };
+
+  const toggleDefiningDenseConnections = () => {
+    if (definingDenseConnections && selectedDenseNodes.length >= 2) {
+      createDenseConnections();
+    }
+    setDefiningDenseConnections(!definingDenseConnections);
+    setDefiningLayer(false);
+    setNodeType(null);
   };
 
   const handleGridClick = (x, y) => {
@@ -46,13 +57,13 @@ const SubstrateDesigner = () => {
           ? prev.filter(([px, py]) => px !== x || py !== y)
           : [...prev, node]
       );
-    } else if (nodeType === 'dense') {
-      if (!selectionStart) {
-        setSelectionStart([x, y]);
-      } else {
-        setSelectionEnd([x, y]);
-        createDenseConnections();
-      }
+    } else if (definingDenseConnections) {
+      const node = [x, y];
+      setSelectedDenseNodes(prev => 
+        prev.some(([px, py]) => px === x && py === y)
+          ? prev.filter(([px, py]) => px !== x || py !== y)
+          : [...prev, node]
+      );
     } else if (nodeType) {
       handleNodePlacement(x, y);
     } else if (!selectedPoint) {
@@ -104,42 +115,29 @@ const SubstrateDesigner = () => {
   const toggleNodeType = (type) => {
     setNodeType(prevType => prevType === type ? null : type);
     setSelectedPoint(null);
-    setSelectionStart(null);
-    setSelectionEnd(null);
+    setDefiningLayer(false);
+    setDefiningDenseConnections(false);
   };
 
   const createDenseConnections = () => {
-    if (!selectionStart || !selectionEnd) return;
-  
-    const [x1, y1] = selectionStart;
-    const [x2, y2] = selectionEnd;
-    const minX = Math.min(x1, x2);
-    const maxX = Math.max(x1, x2);
-    const minY = Math.min(y1, y2);
-    const maxY = Math.max(y1, y2);
-  
-    const nodesInArea = {
-      input: inputNodes.filter(([x, y]) => x >= minX && x <= maxX && y >= minY && y <= maxY),
-      hidden: hiddenNodes.filter(([x, y]) => x >= minX && x <= maxX && y >= minY && y <= maxY),
-      output: outputNodes.filter(([x, y]) => x >= minX && x <= maxX && y >= minY && y <= maxY),
-    };
-  
-    const allNodes = [...nodesInArea.input, ...nodesInArea.hidden, ...nodesInArea.output];
-    allNodes.sort((a, b) => a[1] - b[1]); // Sort nodes by y-coordinate
-  
+    if (selectedDenseNodes.length < 2) return;
+
     const newConnections = [];
-  
+
+    // Sort nodes by y-coordinate
+    selectedDenseNodes.sort((a, b) => a[1] - b[1]);
+
     // Create connections between all nodes
-    for (let i = 0; i < allNodes.length; i++) {
-      const sourceNode = allNodes[i];
-      for (let j = i + 1; j < allNodes.length; j++) {
-        const targetNode = allNodes[j];
+    for (let i = 0; i < selectedDenseNodes.length; i++) {
+      const sourceNode = selectedDenseNodes[i];
+      for (let j = i + 1; j < selectedDenseNodes.length; j++) {
+        const targetNode = selectedDenseNodes[j];
         if (targetNode[1] > sourceNode[1]) { // Ensure the target node is in a later row
           newConnections.push([...sourceNode, ...targetNode]);
         }
       }
     }
-  
+
     // Filter out existing connections
     const uniqueNewConnections = newConnections.filter(newConn => 
       !connections.some(existingConn => 
@@ -149,26 +147,14 @@ const SubstrateDesigner = () => {
          existingConn[2] === newConn[0] && existingConn[3] === newConn[1])
       )
     );
-  
+
     setConnections([...connections, ...uniqueNewConnections]);
-    setSelectionStart(null);
-    setSelectionEnd(null);
-    setNodeType(null);
+    setSelectedDenseNodes([]);
+    setDefiningDenseConnections(false);
   };
 
   const isPointSelected = (x, y) => {
     return selectedPoint && selectedPoint[0] === x && selectedPoint[1] === y;
-  };
-
-  const isPointInSelection = (x, y) => {
-    if (!selectionStart || !selectionEnd) return false;
-    const [x1, y1] = selectionStart;
-    const [x2, y2] = selectionEnd;
-    const minX = Math.min(x1, x2);
-    const maxX = Math.max(x1, x2);
-    const minY = Math.min(y1, y2);
-    const maxY = Math.max(y1, y2);
-    return x >= minX && x <= maxX && y >= minY && y <= maxY;
   };
 
   const isInputNode = (x, y) => inputNodes.some(node => node[0] === x && node[1] === y);
@@ -177,6 +163,12 @@ const SubstrateDesigner = () => {
   const isNodeInLayer = (x, y) => {
     if (definingLayer) {
       return selectedLayerNodes.some(([nx, ny]) => nx === x && ny === y);
+    }
+    return false;
+  };
+  const isNodeInDenseSelection = (x, y) => {
+    if (definingDenseConnections) {
+      return selectedDenseNodes.some(([nx, ny]) => nx === x && ny === y);
     }
     return false;
   };
@@ -249,8 +241,8 @@ const SubstrateDesigner = () => {
           className={`w-8 h-8 border flex items-center justify-center cursor-pointer
             ${(x + y) % 2 === 0 ? 'bg-gray-50' : 'bg-white'}
             ${isPointSelected(x, y) ? 'border-4 border-blue-500' : 'border-gray-200'}
-            ${isPointInSelection(x, y) ? 'bg-yellow-200' : ''}
             ${isNodeInLayer(x, y) ? 'bg-purple-200' : ''}
+            ${isNodeInDenseSelection(x, y) ? 'bg-yellow-200' : ''}
             relative`}
           onClick={() => handleGridClick(x, y)}
         >
@@ -301,14 +293,14 @@ const SubstrateDesigner = () => {
           Place/Remove Output Nodes
         </button>
         <button
-          onClick={() => toggleNodeType('dense')}
+          onClick={toggleDefiningDenseConnections}
           className={`px-4 py-2 rounded mr-2 ${
-            nodeType === 'dense'
+            definingDenseConnections
               ? 'bg-purple-500 text-white border-2 border-blue-500'
               : 'bg-purple-500 text-white'
           }`}
         >
-          Create Dense Connections
+          {definingDenseConnections ? 'Finish Dense Connections' : 'Create Dense Connections'}
         </button>
         <button
           onClick={toggleDefiningLayer}
