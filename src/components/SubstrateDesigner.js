@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 
 const InstructionsPopup = ({ isOpen, onClose }) => {
   if (!isOpen) return null;
@@ -47,7 +47,7 @@ const SubstrateDesigner = () => {
   const [nodeType, setNodeType] = useState(null);
   const [inputNodes, setInputNodes] = useState([]);
   const [outputNodes, setOutputNodes] = useState([]);
-  
+
   const [definingLayer, setDefiningLayer] = useState(false);
   const [definingDenseConnections, setDefiningDenseConnections] = useState(false);
   const [selectedLayerNodes, setSelectedLayerNodes] = useState([]);
@@ -59,7 +59,7 @@ const SubstrateDesigner = () => {
   const hiddenNodes = useMemo(() => {
     const allNodes = new Set([...inputNodes, ...outputNodes].map(node => JSON.stringify(node)));
     const hiddenSet = new Set();
-    
+
     connections.forEach(([x1, y1, x2, y2]) => {
       const start = JSON.stringify([x1, y1]);
       const end = JSON.stringify([x2, y2]);
@@ -70,14 +70,82 @@ const SubstrateDesigner = () => {
     return Array.from(hiddenSet).map(node => JSON.parse(node));
   }, [connections, inputNodes, outputNodes]);
 
-  const toggleDefiningLayer = () => {
-    if (definingLayer && selectedLayerNodes.length >= 2) {
-      setLayers(prevLayers => [...prevLayers, { nodes: selectedLayerNodes }]);
-      setSelectedLayerNodes([]);
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        if (definingLayer) {
+          setDefiningLayer(false);
+          setSelectedLayerNodes([]);
+        } else if (definingDenseConnections) {
+          setDefiningDenseConnections(false);
+          setSelectedDenseNodes([]);
+        } else if (nodeType) {
+          setNodeType(null);
+        }
+        setSelectedPoint(null);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+
+    // Cleanup function to remove the event listener
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [definingLayer, definingDenseConnections, nodeType]);
+
+  const defineLayer = () => {
+    if (selectedLayerNodes.length < 2) {
+      alert("Please select at least 2 nodes to define a layer.");
+      return;
     }
-    setDefiningLayer(!definingLayer);
-    setDefiningDenseConnections(false);
-    setNodeType(null);
+
+    // Sort nodes by y-coordinate (descending) and then by x-coordinate (ascending)
+    const sortedNodes = [...selectedLayerNodes].sort((a, b) => {
+      if (b[1] !== a[1]) return b[1] - a[1];
+      return a[0] - b[0];
+    });
+
+    const rows = [];
+    let currentRow = [];
+    let currentY = sortedNodes[0][1];
+
+    sortedNodes.forEach(node => {
+      if (node[1] !== currentY) {
+        rows.push(currentRow);
+        currentRow = [];
+        currentY = node[1];
+      }
+      currentRow.push(node);
+    });
+    rows.push(currentRow);
+
+    const layerShape = rows.map(row => row.length);
+    
+    const newLayer = {
+      shape: layerShape,
+      nodes: sortedNodes,
+    };
+
+    setLayers(prevLayers => [...prevLayers, newLayer]);
+    setSelectedLayerNodes([]);
+    setDefiningLayer(false);
+  };
+
+  const toggleDefiningLayer = () => {
+    if (definingLayer) {
+      if (selectedLayerNodes.length >= 2) {
+        defineLayer();
+      } else {
+        // If no nodes are selected, just turn off the layer definition mode
+        setDefiningLayer(false);
+        setSelectedLayerNodes([]);
+      }
+    } else {
+      setDefiningLayer(true);
+      setDefiningDenseConnections(false);
+      setNodeType(null);
+    }
   };
 
   const toggleDefiningDenseConnections = () => {
@@ -111,14 +179,14 @@ const SubstrateDesigner = () => {
     } else {
       const [x1, y1] = selectedPoint;
       const [x2, y2] = [x, y];
-      
+
       if (x1 === x2 && y1 === y2) {
         setSelectedPoint(null);
         return;
       }
 
       const newConnection = [x1, y1, x2, y2];
-      
+
       const connectionIndex = connections.findIndex(
         conn => (conn[0] === x1 && conn[1] === y1 && conn[2] === x2 && conn[3] === y2) ||
                 (conn[0] === x2 && conn[1] === y2 && conn[2] === x1 && conn[3] === y1)
@@ -201,7 +269,7 @@ const SubstrateDesigner = () => {
     if (definingLayer) {
       return selectedLayerNodes.some(([nx, ny]) => nx === x && ny === y);
     }
-    return false;
+    return layers.some(layer => layer.nodes.some(([nx, ny]) => nx === x && ny === y));
   };
   const isNodeInDenseSelection = (x, y) => {
     if (definingDenseConnections) {
@@ -227,12 +295,20 @@ const SubstrateDesigner = () => {
     <div className="mb-4">
       <h2 className="text-xl font-semibold mb-2 text-center">Defined Layers</h2>
       {layers.map((layer, index) => (
-        <div key={index} className="mb-2">
+        <div key={index} className="mb-4">
           <h3 className="text-lg font-semibold">Layer {index + 1}</h3>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
-            {layer.nodes.map(([x, y], nodeIndex) => (
-              <div key={nodeIndex} className="bg-gray-100 p-1 rounded text-center text-sm">
-                ({x}, {y})
+          <p>Shape: [{layer.shape.join(', ')}]</p>
+          <div className="grid gap-2">
+            {layer.shape.map((rowLength, rowIndex) => (
+              <div key={rowIndex} className="flex gap-2">
+                {layer.nodes.slice(
+                  layer.shape.slice(0, rowIndex).reduce((a, b) => a + b, 0),
+                  layer.shape.slice(0, rowIndex + 1).reduce((a, b) => a + b, 0)
+                ).map((node, colIndex) => (
+                  <div key={`${rowIndex}-${colIndex}`} className="bg-gray-100 p-1 rounded text-center text-sm">
+                    ({node[0]}, {node[1]})
+                  </div>
+                ))}
               </div>
             ))}
           </div>
@@ -252,12 +328,13 @@ const SubstrateDesigner = () => {
       })),
       layers: layers.map((layer, index) => ({
         id: index,
+        shape: layer.shape,
         nodes: layer.nodes.map(([x, y]) => ({ x, y }))
       }))
     };
-  
+
     const jsonContent = JSON.stringify(substrate, null, 2);
-  
+
     const blob = new Blob([jsonContent], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -280,6 +357,7 @@ const SubstrateDesigner = () => {
             ${isPointSelected(x, y) ? 'border-4 border-blue-500' : 'border-gray-200'}
             ${isNodeInLayer(x, y) ? 'bg-purple-200' : ''}
             ${isNodeInDenseSelection(x, y) ? 'bg-yellow-200' : ''}
+            ${definingLayer && selectedLayerNodes.some(([nx, ny]) => nx === x && ny === y) ? 'bg-purple-400' : ''}
             relative`}
           onClick={() => handleGridClick(x, y)}
         >
